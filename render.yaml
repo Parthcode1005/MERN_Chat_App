@@ -1,0 +1,20 @@
+# Render Blueprint — one Web Service: Express API + Socket.io + static React (frontend/build).
+# After push: Dashboard → New → Blueprint → connect this repo, or add a Web Service manually with the same commands.
+# Add secrets in the dashboard: MONGO_URI, JWT_SECRET (and optional MONGO_DB_NAME, CLIENT_URL).
+
+services:
+  - type: web
+    name: mern-chat-app
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
