@@ -4,7 +4,7 @@ import { Box, Text } from "@chakra-ui/layout";
 import "./styles.css";
 import { IconButton, Spinner, useToast } from "@chakra-ui/react";
 import { getSender, getSenderFull } from "../config/ChatLogics";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import ProfileModal from "./miscellaneous/ProfileModal";
@@ -14,8 +14,8 @@ import animationData from "../animations/typing.json";
 import io from "socket.io-client";
 import UpdateGroupChatModal from "./miscellaneous/UpdateGroupChatModal";
 import { ChatState } from "../Context/ChatProvider";
-const ENDPOINT = "http://localhost:5000"; // "https://talk-a-tive.herokuapp.com"; -> After deployment
-var socket, selectedChatCompare;
+import { getSocketUrl } from "../config";
+let socket;
 
 const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [messages, setMessages] = useState([]);
@@ -34,8 +34,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       preserveAspectRatio: "xMidYMid slice",
     },
   };
-  const { selectedChat, setSelectedChat, user, notification, setNotification } =
-    ChatState();
+  const { selectedChat, setSelectedChat, user, setNotification } = ChatState();
+
+  const selectedChatRef = useRef(selectedChat);
+  selectedChatRef.current = selectedChat;
 
   const fetchMessages = async () => {
     if (!selectedChat) return;
@@ -104,45 +106,63 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   };
 
   useEffect(() => {
-    socket = io(ENDPOINT);
-    socket.emit("setup", user);
+    if (!user) return;
+
+    socket = io(getSocketUrl());
+
+    const onConnect = () => {
+      socket.emit("setup", user);
+      const openChat = selectedChatRef.current;
+      if (openChat && openChat._id) {
+        socket.emit("join chat", openChat._id);
+      }
+    };
+
+    socket.on("connect", onConnect);
     socket.on("connected", () => setSocketConnected(true));
     socket.on("typing", () => setIsTyping(true));
     socket.on("stop typing", () => setIsTyping(false));
 
-    // Cleanup on component unmount
+    const onMessageReceived = (newMessageReceived) => {
+      const openChat = selectedChatRef.current;
+      const rawChat = newMessageReceived.chat;
+      const messageChatId =
+        rawChat && typeof rawChat === "object" ? rawChat._id : rawChat;
+      const isCurrentChat =
+        openChat && String(openChat._id) === String(messageChatId);
+
+      if (!isCurrentChat) {
+        setNotification((prev) => {
+          if (prev.some((n) => n._id === newMessageReceived._id)) {
+            return prev;
+          }
+          return [newMessageReceived, ...prev];
+        });
+        setFetchAgain((f) => !f);
+        return;
+      }
+
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === newMessageReceived._id)) {
+          return prev;
+        }
+        return [...prev, newMessageReceived];
+      });
+    };
+
+    socket.on("message received", onMessageReceived);
+
     return () => {
+      socket.off("connect", onConnect);
+      socket.off("message received", onMessageReceived);
       socket.disconnect();
     };
-  }, [user]);
+  }, [user, setFetchAgain, setNotification]);
 
   useEffect(() => {
     fetchMessages();
-
-    selectedChatCompare = selectedChat;
     // eslint-disable-next-line
   }, [selectedChat]);
-
-  useEffect(() => {
-    socket.on("message received", (newMessageReceived) => {
-      if (
-        !selectedChatCompare || // if chat is not selected or doesn't match current chat
-        selectedChatCompare._id !== newMessageReceived.chat._id
-      ) {
-        if (!notification.includes(newMessageReceived)) {
-          setNotification([newMessageReceived, ...notification]);
-          setFetchAgain(!fetchAgain);
-        }
-      } else {
-        setMessages((prevMessages) => [...prevMessages, newMessageReceived]);
-      }
-    });
-
-    // Cleanup on component unmount
-    return () => {
-      socket.off("message received");
-    };
-  }, [selectedChatCompare, notification, fetchAgain]);
 
   const typingHandler = (e) => {
     setNewMessage(e.target.value);

@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const connectDB = require("./config/db");
 const dotenv = require("dotenv");
 const userRoutes = require("./routes/userRoutes");
@@ -12,6 +13,18 @@ dotenv.config();
 connectDB();
 const app = express();
 
+// CORS + Socket.io: set CLIENT_URL for split front/back deploys. On Render (single service), set
+// CLIENT_URL to your site URL, or leave unset: production uses dynamic Origin reflection.
+const clientUrl = process.env.CLIENT_URL;
+const corsOrigin =
+  clientUrl ||
+  (process.env.NODE_ENV === "production" ? true : "http://localhost:3000");
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
 app.use(express.json()); // To accept JSON data
 
 // Routes
@@ -47,8 +60,7 @@ const server = app.listen(PORT, () => {
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: "http://localhost:3000",
-    // credentials: true,
+    origin: corsOrigin,
   },
 });
 
@@ -69,12 +81,15 @@ io.on("connection", (socket) => {
   socket.on("new message", (newMessageReceived) => {
     const chat = newMessageReceived.chat;
 
-    if (!chat.users) return console.log("chat.users not defined");
+    if (!chat || !chat.users) {
+      return console.log("chat.users not defined");
+    }
 
-    chat.users.forEach((user) => {
-      if (user._id == newMessageReceived.sender._id) return;
-
-      socket.in(user._id).emit("message received", newMessageReceived);
+    chat.users.forEach((u) => {
+      if (String(u._id) === String(newMessageReceived.sender._id)) {
+        return;
+      }
+      socket.to(String(u._id)).emit("message received", newMessageReceived);
     });
   });
 

@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment (keep .env.example in repo as a template)
+.env
+.env.*
+!.env.example
+!.env*.example
+
+# Build
+build/
+dist/
+frontend/build/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime / tooling caches
+pids
+*.pid
+*.seed
+*.pid.lock
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Tests
+coverage/
+.nyc_output/
+*.lcov
+
+# IDEs
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Archives / local
+*.tgz
+*.local
